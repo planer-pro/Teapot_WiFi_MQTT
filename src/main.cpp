@@ -5,7 +5,7 @@
 #include <NTPClient.h>
 #include <WiFiUdp.h>
 #include <PubSubClient.h>
-#include <GyverButton.h>
+#include <EncButton.h>
 #include <EEPROM.h>
 
 // Pin definitions
@@ -28,7 +28,7 @@
 #define NTP_TIMEZONE 3      // Belarus
 
 // Button initialization
-GButton buttAction(BUTT_PIN, HIGH_PULL, NORM_OPEN);
+Button buttAction(BUTT_PIN, INPUT_PULLUP, LOW);
 
 // WiFi and MQTT clients
 WiFiClient myWifi;
@@ -104,11 +104,7 @@ void setup(void)
 {
     // Check if the button is pressed during startup
     if (!digitalRead(BUTT_PIN))
-    {
         hotArming = true;
-        // while (!digitalRead(BUTT_PIN))
-        //     ;
-    }
 
     // Initialize serial for debugging
     if (debugSerial)
@@ -257,7 +253,7 @@ void buttHandler()
             }
         }
 
-        if (buttAction.isHolded())
+        if (buttAction.hold())
             setOff();
     }
 }
