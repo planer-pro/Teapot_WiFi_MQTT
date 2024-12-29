@@ -5,6 +5,7 @@
 #include <NTPClient.h>
 #include <WiFiUdp.h>
 #include <PubSubClient.h>
+#include <ESP8266Ping.h>
 #include <EncButton.h>
 #include <EEPROM.h>
 
@@ -63,7 +64,7 @@ uint32_t _tmTerm = 0, _tmLed = 0, _tmTmp = 0, _tmInf = 0, _tmMqttConn = 0, _tmNt
 
 uint16_t setTempVal = TERMO_VAL; // Set temperature value on start
 
-bool partTerm = false, startOnce = true, debugSerial = false, debugUdp = false, inetStatus = false, hotArming = false, almSrabotFlag = false;
+bool partTerm = false, oneShootWifi = true, oneShootMQTT = true, debugSerial = false, debugUdp = false, wifiStatus = false, hotArming = false, almSrabotFlag = false;
 
 // Configuration structure
 struct Config
@@ -99,6 +100,7 @@ void sendAlleepromDataUdp();
 void getTempData();
 void NtpCompareHandler();
 void calculateAlarmVariables(String p);
+// bool pingGoogle();
 
 void setup(void)
 {
@@ -131,7 +133,7 @@ void setup(void)
     setWIFIConfig(cf.ssid, cf.pass);
 
     // Initialize OTA, NTP, and MQTT if internet is available
-    if (inetStatus)
+    if (wifiStatus)
     {
         client.set_server(cf.mserver, cf.port);
         ArduinoOTA.begin();
@@ -146,7 +148,7 @@ void setup(void)
 
 void loop(void)
 {
-    if (inetStatus)
+    if (wifiStatus)
     {
         ArduinoOTA.handle();
         timeClient.update();
@@ -188,6 +190,7 @@ void NtpCompareHandler()
     if (millis() - _tmNtp > NTP_REQ_PERIOD)
     {
         String tme = timeClient.getFormattedTime();
+
         tme = tme.substring(0, tme.length() - 3); // remove seconds with ':'
         int separatorIndexNtp = tme.indexOf(':'); // find the index of the ':' separator
 
@@ -378,7 +381,7 @@ void setWIFIConfig(const char *ssid, const char *pass)
 
     WiFi.begin(ssid, pass);
 
-    inetStatus = true;
+    wifiStatus = true;
 
     while (WiFi.status() != WL_CONNECTED)
     {
@@ -391,7 +394,7 @@ void setWIFIConfig(const char *ssid, const char *pass)
 
         if (tryingCnt == TRY_CONN_TIMES)
         {
-            inetStatus = false;
+            wifiStatus = false;
             break;
         }
 
@@ -411,10 +414,10 @@ void setWIFIConfig(const char *ssid, const char *pass)
 
 void wifiManagerHandler()
 {
-    if (startOnce && (WiFi.status() != WL_CONNECTED))
+    if (oneShootWifi && (WiFi.status() != WL_CONNECTED))
     {
-        startOnce = false;
-        inetStatus = false;
+        oneShootWifi = false;
+        wifiStatus = false;
 
         portalStart();
 
@@ -554,7 +557,7 @@ void mqttManagerHandler()
     {
         if (!client.connected())
         {
-            if (millis() - _tmMqttConn > MQTT_CONN_PERIOD)
+            if ((millis() - _tmMqttConn > MQTT_CONN_PERIOD))
             {
                 if (debugSerial)
                     Serial.print("Connecting to MQTT server...");
@@ -570,6 +573,14 @@ void mqttManagerHandler()
                 }
                 else
                 {
+                    if (oneShootMQTT)
+                    {
+                        wifiStatus = false;
+                        oneShootMQTT = false;
+
+                        portalStart();
+                    }
+
                     if (debugSerial)
                         Serial.println("Could not connect");
                 }
@@ -644,3 +655,8 @@ void checkChipID()
     if (debugSerial)
         Serial.println("\nChip pass");
 }
+
+// bool pingGoogle()
+// {
+//     return Ping.ping("8.8.8.8", 1);
+// }
