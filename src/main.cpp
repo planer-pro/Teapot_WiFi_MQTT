@@ -64,7 +64,7 @@ uint32_t _tmTerm = 0, _tmLed = 0, _tmTmp = 0, _tmInf = 0, _tmMqttConn = 0, _tmNt
 
 uint16_t setTempVal = TERMO_VAL; // Set temperature value on start
 
-bool partTerm = false, doMultipleTime = true, oneShootMQTT = true, debugSerial = false, debugUdp = false, wifiOnline = false, hotArming = false, almSrabotFlag = false;
+bool partTerm = false, doMultipleTime = true, debugSerial = false, debugUdp = false, wifiOnline = false, hotArming = false, almSrabotFlag = false;
 
 // Configuration structure
 struct Config
