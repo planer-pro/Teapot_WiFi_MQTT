@@ -20,9 +20,9 @@
 #define LED_BLINK_PERIOD 1000
 #define DATA_SEND_PERIOD 1000
 #define TRY_CONN_TIMES 140
-#define MQTT_CONN_PERIOD 10000 // 10 sec
-#define BOIL_VAL 100           // 810
-#define TERMO_VAL 80           // 660
+#define MQTT_CONN_PERIOD 3000 // 3 sec
+#define BOIL_VAL 100          // 810
+#define TERMO_VAL 80          // 660
 #define TERMO_HYSTERESIS 4
 #define AVEARGE_COUNTS 10
 #define NTP_REQ_PERIOD 1000 // 1 sec request NTP server
@@ -64,7 +64,7 @@ uint32_t _tmTerm = 0, _tmLed = 0, _tmTmp = 0, _tmInf = 0, _tmMqttConn = 0, _tmNt
 
 uint16_t setTempVal = TERMO_VAL; // Set temperature value on start
 
-bool partTerm = false, oneShootWifi = true, oneShootMQTT = true, debugSerial = false, debugUdp = false, wifiStatus = false, hotArming = false, almSrabotFlag = false;
+bool partTerm = false, doMultipleTime = true, oneShootMQTT = true, debugSerial = false, debugUdp = false, wifiOnline = false, hotArming = false, almSrabotFlag = false;
 
 // Configuration structure
 struct Config
@@ -133,7 +133,7 @@ void setup(void)
     setWIFIConfig(cf.ssid, cf.pass);
 
     // Initialize OTA, NTP, and MQTT if internet is available
-    if (wifiStatus)
+    if (wifiOnline)
     {
         client.set_server(cf.mserver, cf.port);
         ArduinoOTA.begin();
@@ -148,7 +148,7 @@ void setup(void)
 
 void loop(void)
 {
-    if (wifiStatus)
+    if (wifiOnline)
     {
         ArduinoOTA.handle();
         timeClient.update();
@@ -381,7 +381,7 @@ void setWIFIConfig(const char *ssid, const char *pass)
 
     WiFi.begin(ssid, pass);
 
-    wifiStatus = true;
+    wifiOnline = true;
 
     while (WiFi.status() != WL_CONNECTED)
     {
@@ -394,7 +394,7 @@ void setWIFIConfig(const char *ssid, const char *pass)
 
         if (tryingCnt == TRY_CONN_TIMES)
         {
-            wifiStatus = false;
+            wifiOnline = false;
             break;
         }
 
@@ -414,10 +414,10 @@ void setWIFIConfig(const char *ssid, const char *pass)
 
 void wifiManagerHandler()
 {
-    if (oneShootWifi && (WiFi.status() != WL_CONNECTED))
+    if (doMultipleTime && (WiFi.status() != WL_CONNECTED))
     {
-        oneShootWifi = false;
-        wifiStatus = false;
+        doMultipleTime = false;
+        wifiOnline = false;
 
         portalStart();
 
@@ -555,38 +555,35 @@ void mqttManagerHandler()
 {
     if (WiFi.status() == WL_CONNECTED)
     {
-        if (!client.connected())
+        if (!client.connected() && (millis() - _tmMqttConn > MQTT_CONN_PERIOD))
         {
-            if ((millis() - _tmMqttConn > MQTT_CONN_PERIOD))
+            if (debugSerial)
+                Serial.print("Connecting to MQTT server...");
+
+            if (client.connect(MQTT::Connect("teapotClient")
+                                   .set_auth(cf.mlogin, cf.mpass)))
             {
                 if (debugSerial)
-                    Serial.print("Connecting to MQTT server...");
+                    Serial.println("Connected");
 
-                if (client.connect(MQTT::Connect("teapotClient")
-                                       .set_auth(cf.mlogin, cf.mpass)))
-                {
-                    if (debugSerial)
-                        Serial.println("Connected");
-
-                    client.subscribe(cf.topctrl);
-                    client.set_callback(callback);
-                }
-                else
-                {
-                    if (oneShootMQTT)
-                    {
-                        wifiStatus = false;
-                        oneShootMQTT = false;
-
-                        portalStart();
-                    }
-
-                    if (debugSerial)
-                        Serial.println("Could not connect");
-                }
-
-                _tmMqttConn = millis();
+                client.subscribe(cf.topctrl);
+                client.set_callback(callback);
             }
+            else
+            {
+                // if (oneShootMQTT)
+                // {
+                //     wifiOnline = false;
+                //     oneShootMQTT = false;
+
+                //     portalStart();
+                // }
+
+                if (debugSerial)
+                    Serial.println("Could not connect");
+            }
+
+            _tmMqttConn = millis();
         }
         else
         {
