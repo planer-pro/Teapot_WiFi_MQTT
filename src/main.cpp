@@ -25,8 +25,8 @@
 #define TERMO_VAL 80          // 660
 #define TERMO_HYSTERESIS 4
 #define AVEARGE_COUNTS 10
-#define NTP_CORR_TIME_PERIOD 3600000 // NTP time correction every 1 hour (3 600 000 ms)
-#define NTP_TIMEZONE 3               // Belarus
+#define NTP_CORR_TIME_PERIOD 600000 // NTP time correction every 10 min (600 000 ms)
+#define NTP_TIMEZONE 3              // Belarus
 
 // Button initialization
 Button buttAction(BUTT_PIN, INPUT_PULLUP, LOW);

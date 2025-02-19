@@ -1,0 +1,1 @@
+Add alarm time and state (on) on eeprom.
