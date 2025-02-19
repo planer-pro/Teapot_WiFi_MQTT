@@ -1,1 +1,2 @@
-Add alarm time and state (on) on eeprom.
+*Add alarm time and state (on) on eeprom.
+Add alm mode, alm time reaction, alm temperature to client.publish

@@ -45,20 +45,23 @@ NTPClient timeClient(ntpUDP, "europe.pool.ntp.org", 3600 * NTP_TIMEZONE, NTP_COR
 // Mode enumeration
 enum Mode
 {
-    OFF = 0,
-    HOT = 1,
-    TERM = 2
+    OFF,
+    HOT,
+    TERM
+};
+
+// Alarm type enumeration
+enum alarmType
+{
+    ALM_BOIL,
+    ALM_TERM
 };
 
 // Global variables
 uint8_t ntpHour = 0;
 uint8_t ntpMinute = 0;
 uint8_t ntpSecond = 0;
-uint8_t incomHourValue = 0;
-uint8_t incomMinValue = 0;
-uint8_t almType = 0;
 
-bool enAlarm = false;
 uint8_t modeType = OFF, tryingCnt = 0;
 uint16_t an = 0, anOld = 0;
 uint32_t _tmTerm = 0, _tmLed = 0, _tmTmp = 0, _tmInf = 0, _tmMqttConn = 0, _tmNtpCorr = 0, _tmSwClock = 0;
@@ -80,6 +83,14 @@ struct Config
     char topinfo[20];
 } cf;
 
+struct alarm
+{
+    bool enAlm;
+    uint8_t almType;
+    uint8_t almHour;
+    uint8_t almMin;
+} al;
+
 // Function prototypes
 void checkChipID();
 void setHeater(bool);
@@ -92,8 +103,10 @@ void buttHandler();
 void execHandler();
 void wifiManagerHandler();
 void setWIFIConfig(const char *ssid, const char *pass);
-void eepromStoreConfig();
-void eepromGetConfig();
+void eepromGetSetup();
+void eepromStoreSetup();
+void eepromGetAl();
+void eepromStoreAl();
 void mqttManagerHandler();
 void callback(const MQTT::Publish &pub);
 void sendDataUDP(String data);
@@ -115,6 +128,7 @@ void setup(void)
     if (debugSerial)
     {
         Serial.begin(115200);
+
         delay(10);
     }
 
@@ -122,8 +136,19 @@ void setup(void)
     checkChipID();
 
     // Initialize EEPROM
-    EEPROM.begin(150); // for 122 bytes in structure
-    eepromGetConfig();
+    // EEPROM.begin(150); // for 122 bytes in structure
+    EEPROM.begin(sizeof(cf) + sizeof(al) + 1); // for 122 bytes in structure
+
+    eepromGetSetup();
+
+    // for test
+    // al.enAlm = true;
+    // al.almType = 1;
+    // al.almHour = 15;
+    // al.almMin = 45;
+    // eepromStoreAl();
+
+    eepromGetAl();
 
     // Set pin modes
     pinMode(LED_PIN, OUTPUT);
@@ -239,21 +264,21 @@ void softwareClockHandler()
 
 void checkAlarm()
 {
-    if (enAlarm)
+    if (al.enAlm)
     {
-        if (ntpHour == incomHourValue && ntpMinute == incomMinValue)
+        if (ntpHour == al.almHour && ntpMinute == al.almMin)
         {
             almSrabotFlag = true;
 
-            switch (almType)
+            switch (al.almType)
             {
-            case 0:
+            case ALM_BOIL:
                 setTempVal = BOIL_VAL;
 
                 setHot();
 
                 break;
-            case 1:
+            case ALM_TERM:
                 setTempVal = TERMO_VAL;
 
                 setTermo();
@@ -285,13 +310,16 @@ void buttHandler()
             case 1:
                 setTempVal = BOIL_VAL;
                 setHot();
+
                 break;
             case 2:
                 setTempVal = TERMO_VAL;
                 setTermo();
+
                 break;
             case 7:
                 setReset();
+
                 break;
             }
         }
@@ -307,9 +335,11 @@ void ledHandler()
     {
     case OFF:
         digitalWrite(LED_PIN, HIGH);
+
         break;
     case HOT:
         digitalWrite(LED_PIN, LOW);
+
         break;
     case TERM:
         if (millis() - _tmLed > LED_BLINK_PERIOD)
@@ -317,6 +347,7 @@ void ledHandler()
             digitalWrite(LED_PIN, !digitalRead(LED_PIN));
             _tmLed = millis();
         }
+
         break;
     }
 }
@@ -327,16 +358,19 @@ void execHandler()
     {
     case OFF:
         setHeater(LOW);
+
         break;
     case HOT:
         if (an < setTempVal)
             setHeater(HIGH);
         else
             setOff();
+
         break;
     case TERM:
         if (millis() - _tmTerm > SAVE_TERMO_TIMEOUT)
             setOff();
+
         if (!partTerm)
         {
             if (an < setTempVal)
@@ -352,6 +386,7 @@ void execHandler()
             if (an < (setTempVal - TERMO_HYSTERESIS))
                 partTerm = !partTerm;
         }
+
         break;
     }
 }
@@ -377,6 +412,7 @@ void setTermo()
 
     modeType = TERM;
     partTerm = false;
+
     _tmTerm = millis();
 }
 
@@ -391,7 +427,9 @@ void setOff()
     if (almSrabotFlag)
     {
         almSrabotFlag = false;
-        enAlarm = false;
+        al.enAlm = false;
+
+        eepromStoreAl();
     }
 }
 
@@ -409,7 +447,7 @@ void setReset()
     strncpy(cf.topinfo, "TOPINFO", sizeof(cf.topinfo));
     cf.port = 0;
 
-    eepromStoreConfig();
+    eepromStoreSetup();
 
     ESP.restart();
 }
@@ -502,7 +540,7 @@ void wifiManagerHandler()
                 Serial.println(cf.topinfo);
             }
 
-            eepromStoreConfig();
+            eepromStoreSetup();
 
             if (debugUdp)
                 sendAlleepromDataUdp();
@@ -559,14 +597,16 @@ void callback(const MQTT::Publish &pub)
             {
                 calculateAlarmVariables(payload);
 
-                almType = 0; // boil alarm mode
+                al.almType = ALM_BOIL;
             }
             else // it means: payload[1] == '2' (termo alarm)
             {
                 calculateAlarmVariables(payload);
 
-                almType = 1; // termo alarm mode
+                al.almType = ALM_TERM;
             }
+
+            eepromStoreAl();
         }
         else
         {
@@ -579,15 +619,18 @@ void callback(const MQTT::Publish &pub)
 
 void calculateAlarmVariables(String p)
 {
-    p.remove(0, 3);     // remove first 3 characters
-    enAlarm = !enAlarm; // alarm enable (every time invert)
+    p.remove(0, 3); // remove first 3 characters
 
     int separatorIndexIncoming = p.indexOf(':'); // find the index of the ':' separator
 
     if (separatorIndexIncoming != -1)
     {
-        incomHourValue = p.substring(0, separatorIndexIncoming).toInt(); // Convert to integer
-        incomMinValue = p.substring(separatorIndexIncoming + 1).toInt();
+        al.enAlm = !al.enAlm; // alarm enable (every time invert)
+
+        al.almHour = p.substring(0, separatorIndexIncoming).toInt(); // Convert to integer
+        al.almMin = p.substring(separatorIndexIncoming + 1).toInt();
+
+        eepromStoreAl();
     }
 }
 
@@ -611,14 +654,6 @@ void mqttManagerHandler()
             }
             else
             {
-                // if (oneShootMQTT)
-                // {
-                //     wifiOnline = false;
-                //     oneShootMQTT = false;
-
-                //     portalStart();
-                // }
-
                 if (debugSerial)
                     Serial.println("Could not connect");
             }
@@ -631,7 +666,7 @@ void mqttManagerHandler()
 
             if (millis() - _tmInf > DATA_SEND_PERIOD)
             {
-                client.publish(cf.topinfo, String(an) + "," + String(setTempVal) + "," + String(enAlarm) + "," + String(modeType) + "," + String(ntpHour) + "," + String(ntpMinute)); // with time
+                client.publish(cf.topinfo, String(an) + "," + String(setTempVal) + "," + String(al.enAlm) + "," + String(modeType) + "," + String(ntpHour) + "," + String(ntpMinute));
 
                 if (debugUdp)
                     sendDataUDP(String(an));
@@ -642,18 +677,34 @@ void mqttManagerHandler()
     }
 }
 
-void eepromStoreConfig()
-{
-    EEPROM.put(0, cf);
-    delay(10);
-    EEPROM.commit();
-    delay(10);
-}
-
-void eepromGetConfig()
+void eepromGetSetup()
 {
     EEPROM.get(0, cf);
-    delay(10);
+
+    delay(5);
+}
+
+void eepromStoreSetup()
+{
+    EEPROM.put(0, cf);
+    EEPROM.commit();
+
+    delay(5);
+}
+
+void eepromGetAl()
+{
+    EEPROM.get(sizeof(cf) + 1, al);
+
+    delay(5);
+}
+
+void eepromStoreAl()
+{
+    EEPROM.put(sizeof(cf) + 1, al);
+    EEPROM.commit();
+
+    delay(5);
 }
 
 void sendDataUDP(String data)
