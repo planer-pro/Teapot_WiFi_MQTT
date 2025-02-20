@@ -43,7 +43,7 @@ alarm message decode:
 exsample: ctrl = h1,95,15:45
 
 h - alarm message
-1 - alarm mode (1 - hot, 2 - termo)
+1 - alarm mode (0 - off, 1 - hot, 2 - termo)
 95 - alarm temperature
 15 - alarm hour
 45 - alarm minute
