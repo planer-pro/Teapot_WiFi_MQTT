@@ -22,7 +22,7 @@ h - alarm state (on/off)
 
 --------------------------------------------------------------------------------
 must to do: 
-exsample: info = 21,22,0,15,45,1,95,15,45
+exsample: info = 21,22,0,15:45,1,95,15:45
 
 21 - current temperature
 22 - set temperature

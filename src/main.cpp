@@ -1,4 +1,3 @@
-
 #include <Arduino.h>
 #include <ArduinoOTA.h>
 #include <ESPAsyncUDP.h>
@@ -22,7 +21,7 @@
 #define DATA_SEND_PERIOD 1000
 #define TRY_CONN_TIMES 140
 #define MQTT_CONN_PERIOD 3000 // 3 sec
-#define BOIL_VAL 100          // 810
+#define HOT_VAL 100           // 810
 #define TERMO_VAL 80          // 660
 #define TERMO_HYSTERESIS 4
 #define AVEARGE_COUNTS 10
@@ -54,7 +53,7 @@ enum Mode
 // Alarm type enumeration
 enum alarmType
 {
-    ALM_BOIL,
+    ALM_HOT,
     ALM_TERM
 };
 
@@ -90,11 +89,13 @@ struct alarm
     uint8_t almType;
     uint8_t almHour;
     uint8_t almMin;
+    uint8_t almSec;
 } al;
 
 // Function prototypes
 void checkChipID();
 void setHeater(bool);
+void setAlarmOff();
 void setOff();
 void setHot();
 void setTermo();
@@ -115,7 +116,7 @@ void sendAlleepromDataUdp();
 void getTempData();
 void ntpCorrectTimeHandler();
 void softwareClockHandler();
-void calculateAlarmVariables(String p);
+void calculateAlarmTime(String p);
 void checkAlarm();
 // bool pingGoogle();
 
@@ -267,14 +268,14 @@ void checkAlarm()
 {
     if (al.enAlm)
     {
-        if (ntpHour == al.almHour && ntpMinute == al.almMin)
+        if (ntpHour == al.almHour && ntpMinute == al.almMin && ntpSecond == al.almSec) // if time to activate alarm
         {
             almSrabotFlag = true;
 
             switch (al.almType)
             {
-            case ALM_BOIL:
-                setTempVal = BOIL_VAL;
+            case ALM_HOT:
+                setTempVal = HOT_VAL;
 
                 setHot();
 
@@ -295,7 +296,8 @@ void buttHandler()
     if (hotArming)
     {
         hotArming = false;
-        setTempVal = BOIL_VAL;
+        setTempVal = HOT_VAL;
+
         setHot();
     }
     else
@@ -309,12 +311,14 @@ void buttHandler()
             switch (btn)
             {
             case 1:
-                setTempVal = BOIL_VAL;
+                setTempVal = HOT_VAL;
+
                 setHot();
 
                 break;
             case 2:
                 setTempVal = TERMO_VAL;
+
                 setTermo();
 
                 break;
@@ -424,14 +428,17 @@ void setOff()
 
     modeType = OFF;
     partTerm = false;
+}
 
-    if (almSrabotFlag)
-    {
-        almSrabotFlag = false;
-        al.enAlm = false;
+void setAlarmOff()
+{
+    if (debugSerial)
+        Serial.println("Heater: Off");
 
-        eepromStoreAl();
-    }
+    almSrabotFlag = false;
+    al.enAlm = false;
+
+    eepromStoreAl();
 }
 
 void setReset()
@@ -590,22 +597,24 @@ void callback(const MQTT::Publish &pub)
         }
         else if (payload[0] == 'x') // off mode
         {
-            setOff();
+            setOff(); // set off heater
         }
         else if (payload[0] == 'h') // alarm mode
         {
-            if (payload[1] == '1') // boil alarm
+            if (payload[1] == '0')
             {
-                calculateAlarmVariables(payload);
+                setAlarmOff(); // set off alarm whith save al data
 
-                al.almType = ALM_BOIL;
+                return;
             }
-            else // it means: payload[1] == '2' (termo alarm)
-            {
-                calculateAlarmVariables(payload);
-
+            else if (payload[1] == '1') // HOT alarm
+                al.almType = ALM_HOT;
+            else if (payload[1] == '2') // TERM alarm
                 al.almType = ALM_TERM;
-            }
+
+            calculateAlarmTime(payload);
+
+            al.enAlm = true; // alarm enable
 
             eepromStoreAl();
         }
@@ -618,20 +627,19 @@ void callback(const MQTT::Publish &pub)
     }
 }
 
-void calculateAlarmVariables(String p)
+void calculateAlarmTime(String p)
 {
     p.remove(0, 3); // remove first 3 characters
 
-    int separatorIndexIncoming = p.indexOf(':'); // find the index of the ':' separator
+    int separatorIndexFirst = p.indexOf(':'); // find the index of the ':' separator
+    // int separatorIndexSecond = p.indexOf(','); // find the index of the ':' separator (for second)
 
-    if (separatorIndexIncoming != -1)
+    if (separatorIndexFirst != -1)
     {
-        al.enAlm = !al.enAlm; // alarm enable (every time invert)
-
-        al.almHour = p.substring(0, separatorIndexIncoming).toInt(); // Convert to integer
-        al.almMin = p.substring(separatorIndexIncoming + 1).toInt();
-
-        eepromStoreAl();
+        al.almHour = p.substring(0, separatorIndexFirst).toInt(); // Convert to integer
+        al.almMin = p.substring(separatorIndexFirst + 1).toInt();
+        al.almSec = 0;
+        // al.almSec = p.substring(separatorIndexSecond + 1).toInt();
     }
 }
 
@@ -667,7 +675,7 @@ void mqttManagerHandler()
 
             if (millis() - _tmInf > DATA_SEND_PERIOD)
             {
-                client.publish(cf.topinfo, String(an) + "," + String(setTempVal) + "," + String(al.enAlm) + "," + String(modeType) + "," + String(ntpHour) + "," + String(ntpMinute));
+                client.publish(cf.topinfo, String(an) + "," + String(setTempVal) + "," + String(modeType) + "," + String(al.enAlm) + "," + String(ntpHour) + ":" + String(ntpMinute));
 
                 if (debugUdp)
                     sendDataUDP(String(an));
@@ -711,6 +719,7 @@ void eepromStoreAl()
 void sendDataUDP(String data)
 {
     udp.broadcastTo(data.c_str(), 2255); // Port 2255 is UDP Broadcasting port
+
     delay(10);
 }
 
