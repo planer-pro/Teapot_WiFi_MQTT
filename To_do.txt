@@ -2,34 +2,39 @@
 2 Add alm mode, alm time reaction, alm temperature to client.publish
 
 --------------------------------------------------------------------------------
+now:
+
 info message decode:
-exsample: info = 21,22,1,0,15,45
+exsample: info = 21,22,1,0,15:45
 
 21 - current temperature
 22 - set temperature
-1 - alarm state (on/off)
-0 - teapot mode (off/hot/term)
+1 - teapot mode (off/hot/term)
+0 - alarm state (on/off)
 15 - current hour
 45 - current minute
 
 alarm message decode:
 exsample: ctrl = h1,15:45
 
-h - alarm state (on/off)
-1 - alarm mode (1 - hot, 2 - termo)
+h - alarm message
+1 - alarm mode (0 - off, 1 - hot, 2 - termo)
 15 - alarm hour
 45 - alarm minute
 
 --------------------------------------------------------------------------------
-must to do: 
-exsample: info = 21,22,0,15:45,1,95,15:45
+must be:
+
+info message decode:
+exsample: info = 21,22,0,15:45,1,1,95,15:45
 
 21 - current temperature
 22 - set temperature
 0 - teapot mode (off/hot/term)
 15 - current hour
 45 - current minute
-1 - alarm (on/off), and alarm mode (0 - off, 1 - hot, 2 - termo)
+1 - alarm (1-on, 0-off)
+1 - alarm mode (1 - hot, 2 - termo)
 95 - alarm temperature
 15 - alarm hour
 45 - alarm minute
@@ -37,7 +42,7 @@ exsample: info = 21,22,0,15:45,1,95,15:45
 alarm message decode:
 exsample: ctrl = h1,95,15:45
 
-h - alarm state (on/off)
+h - alarm message
 1 - alarm mode (1 - hot, 2 - termo)
 95 - alarm temperature
 15 - alarm hour
