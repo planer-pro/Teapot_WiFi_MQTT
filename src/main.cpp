@@ -105,6 +105,7 @@ void buttHandler();
 void execHandler();
 void wifiManagerHandler();
 void setWIFIConfig(const char *ssid, const char *pass);
+void connectToWiFi();
 void eepromGetSetup();
 void eepromStoreSetup();
 void eepromGetAl();
@@ -222,20 +223,11 @@ void ntpCorrectTimeHandler()
     if (millis() - _tmNtpCorr > NTP_CORR_TIME_PERIOD)
     {
         _tmNtpCorr = millis(); // reset correction time
-
         timeClient.update();
 
+        // Используем sscanf для более удобного разбора времени
         String formattedTime = timeClient.getFormattedTime();
-
-        int firstColon = formattedTime.indexOf(':');
-        int secondColon = formattedTime.lastIndexOf(':');
-
-        if (firstColon != -1 && secondColon != -1)
-        {
-            ntpHour = formattedTime.substring(0, firstColon).toInt();
-            ntpMinute = formattedTime.substring(firstColon + 1, secondColon).toInt();
-            ntpSecond = formattedTime.substring(secondColon + 1).toInt();
-        }
+        sscanf(formattedTime.c_str(), "%2hhu:%2hhu:%2hhu", &ntpHour, &ntpMinute, &ntpSecond);
 
         _tmSwClock = millis(); // reset software clock time
     }
@@ -466,16 +458,19 @@ void setWIFIConfig(const char *ssid, const char *pass)
         Serial.print("\nConnecting to WiFi");
 
     WiFi.begin(ssid, pass);
-
     wifiOnline = true;
 
+    connectToWiFi();
+}
+
+void connectToWiFi()
+{
     while (WiFi.status() != WL_CONNECTED)
     {
         if (debugSerial)
             Serial.print(".");
 
         digitalWrite(LED_PIN, !digitalRead(LED_PIN));
-
         tryingCnt++;
 
         if (tryingCnt == TRY_CONN_TIMES)
@@ -488,7 +483,6 @@ void setWIFIConfig(const char *ssid, const char *pass)
     }
 
     tryingCnt = 0;
-
     digitalWrite(LED_PIN, HIGH); // forced turn off LED after connecting blinking
 
     if (debugSerial)
@@ -697,8 +691,6 @@ void eepromStoreSetup()
 {
     EEPROM.put(0, cf);
     EEPROM.commit();
-
-    delay(5);
 }
 
 void eepromGetAl()
@@ -712,8 +704,6 @@ void eepromStoreAl()
 {
     EEPROM.put(sizeof(cf) + 1, al);
     EEPROM.commit();
-
-    delay(5);
 }
 
 void sendDataUDP(String data)
