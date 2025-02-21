@@ -63,7 +63,7 @@ uint8_t ntpMinute = 0;
 uint8_t ntpSecond = 0;
 
 uint8_t modeType = OFF, tryingCnt = 0;
-uint16_t an = 0, anOld = 0;
+int16_t an = 0, anOld = 0;
 uint32_t _tmTerm = 0, _tmLed = 0, _tmTmp = 0, _tmInf = 0, _tmMqttConn = 0, _tmNtpCorr = 0, _tmSwClock = 0;
 
 uint16_t setTempVal = TERMO_VAL; // Set temperature value on start
@@ -197,14 +197,38 @@ void loop(void)
     softwareClockHandler();
 }
 
+// double calculateTempUpper(double adcValue, double pdRes)
+// {
+//     if (adcValue <= 0)
+//         return NAN; // Ошибка измерения
+
+//     // Рассчет сопротивления термистора
+//     double thermResistance = pdRes * (1023.0 / adcValue - 1.0);
+
+//     // Коэффициенты Steinhart-Hart для Vishay NTCLE100E3103JB0
+//     const double a = 3.354016e-3;
+//     const double b = 2.569850e-4;
+//     const double c = 2.620131e-6;
+//     const double d = 6.383091e-8;
+
+//     double logR = log(thermResistance / 50000.0);
+//     double tempK = 1.0 / (a + b * logR + c * pow(logR, 2) + d * pow(logR, 3));
+
+//     return tempK - 273.15;
+// }
+
 void getTempData()
 {
     if (millis() - _tmTmp > 100) // get temp every 0.1 sec
     {
+        _tmTmp = millis();
+
+        // an = (uint16_t)round(calculateTempUpper(analogRead(NTC_PIN), 10000.0));
+
         for (size_t i = 0; i < AVEARGE_COUNTS; i++)
             an += analogRead(NTC_PIN);
 
-        an = an / AVEARGE_COUNTS / 8; // average degrees value and convert to temperature
+        an = (an / AVEARGE_COUNTS / 8.0) - 2.0; // average degrees value and convert to temperature
 
         if (an != anOld)
         {
@@ -213,8 +237,6 @@ void getTempData()
             if (debugSerial)
                 Serial.println("adc_d: " + String(an));
         }
-
-        _tmTmp = millis();
     }
 }
 
