@@ -53,7 +53,7 @@ enum Mode
 // Alarm type enumeration
 enum alarmType
 {
-    ALM_HOT,
+    ALM_HOT = 1,
     ALM_TERM
 };
 
@@ -665,11 +665,26 @@ void mqttManagerHandler()
         }
         else
         {
+            // info exapple message decode:
+            // exsample: info = 21,22,0,15:45,1,1,15:45
+
+            // 21 - current temperature
+            // 22 - set temperature
+            // 0 - teapot mode (off/hot/term)
+            // 15 - current hour
+            // 45 - current minute
+            // 1 - alarm (1-on, 0-off)
+            // 1 - alarm mode (1 - hot, 2 - termo)
+            // 15 - alarm hour
+            // 45 - alarm minute
+
             client.loop();
 
             if (millis() - _tmInf > DATA_SEND_PERIOD)
             {
-                client.publish(cf.topinfo, String(an) + "," + String(setTempVal) + "," + String(modeType) + "," + String(al.enAlm) + "," + String(ntpHour) + ":" + String(ntpMinute));
+                // client.publish(cf.topinfo, String(an) + "," + String(setTempVal) + "," + String(modeType) + "," + String(al.enAlm) + "," + String(ntpHour) + ":" + String(ntpMinute));
+
+                client.publish(cf.topinfo, String(an) + "," + String(setTempVal) + "," + String(modeType) + "," + String(ntpHour) + ":" + String(ntpMinute) + "," + String(al.enAlm) + "," + String(al.almType) + "," + String(al.almHour) + ":" + String(al.almMin));
 
                 if (debugUdp)
                     sendDataUDP(String(an));
