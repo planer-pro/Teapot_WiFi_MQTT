@@ -228,7 +228,7 @@ void getTempData()
         for (size_t i = 0; i < AVEARGE_COUNTS; i++)
             an += analogRead(NTC_PIN);
 
-        an = (an / AVEARGE_COUNTS / 8.0) - 2.0; // average degrees value and convert to temperature
+        an = (an / AVEARGE_COUNTS / 8.0) - 3.0; // average degrees value and convert to temperature
 
         if (an != anOld)
         {
