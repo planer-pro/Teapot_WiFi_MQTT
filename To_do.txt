@@ -47,3 +47,9 @@ h - alarm message
 95 - alarm temperature
 15 - alarm hour
 45 - alarm minute
+
+–——————
+About mobile software:
+1. Hide alarm clock in setup window.
+2. Add 0 to alarm clock for these moments like "9:7".
+3. Add subscribe and publishes path text input in setup window.
